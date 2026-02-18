@@ -1,8 +1,8 @@
 # clj-cdk-wrapper
 
 Convenient wrapper around Java CDK library.
-Utilizes other library "clj-result" for convenient wrepping or errors.
-Currently work in progress. subject to refactoring
+Utilizes other library "clj-result" for convenient wrapping or errors.
+Currently work in progress. Subject to refactoring
 
 ## Usage
 ### Objects

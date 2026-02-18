@@ -6,14 +6,11 @@
    [org.openscience.cdk.io MDLV2000Reader MDLV2000Writer SDFWriter]
    [org.openscience.cdk.io.iterator IteratingSDFReader]
    [java.io StringReader StringWriter FileReader File])
-  (:require [clj-result.core :as r]
-            ;; [clojure.java.io :as io]
-            ))
+  (:require [clj-result.core :as r]))
 
 
 (defprotocol IMolecule
   "Protocol for manipulation molecule objects"
-  ;; (molecule? [this])
   (add-metadata [this new-data]
     "Add metadata 'name, id, etc.' to Molecule object
      mew data shall be provided as map object
@@ -21,8 +18,12 @@
 
   (remove-metadata [this k]
     "Removes a key (k) and associated value from Molecule object.
-     Returns a new Moleule object"))
+     Returns a new Moleule object")
+  ;; basic struyctural data exporters
 
+
+  ;; TODO place molecule export methods here
+  )
 
 (defrecord Molecule [structure metadata]
   IMolecule
@@ -30,7 +31,12 @@
   (add-metadata [this new-data]
     (assoc this :metadata (merge metadata new-data)))
   (remove-metadata [this k]
-    (assoc this :metadata (dissoc metadata k))))
+    (assoc this :metadata (dissoc metadata k)))
+
+
+  ;; TODO place molecule export metods here
+  )
+
 
 (defn molecule?
   [obj]
@@ -42,7 +48,7 @@
 
 
 (defn smiles->molecule
-  "converts smiles string into molecule object 'IAtomContainer'
+  "converts smiles string into Molecule record
   returns success of Molecule record / failure of error
   Arguments:
   - smiles: string
@@ -59,7 +65,7 @@
       (r/failure (.getMessage e) :cdk-error {:details e}))))
 
 (defn inchi-string->molecule
-  "converts InChI string to molecule object 'IAtomContainer'
+  "converts InChI string to Molecule record
   returns:
   success of Molecule record / failure of error
 
@@ -84,7 +90,7 @@
 
 
 (defn molv2000->molecule
-  "converts MOL V2000 string into molecule object 'IAtomContainer'
+  "converts MOL V2000 string into Molecule record
   returns:
   success of Molecule record / failure of error
 
@@ -100,6 +106,49 @@
          (make-molecule molecule))))
     (catch Exception e
       (r/failure (.getMessage e) :molfile-error {:exception e}))))
+
+
+(defn molecule->inchi-key
+    "calculates calculates an InChI-key for a nolecule object 'IAtomContainer'
+
+  Arguments:
+  - molecule: Molecule record
+
+  "
+    [molecule]
+    (try
+      (let [factory (InChIGeneratorFactory/getInstance)
+            generator (.getInChIGenerator factory (:structure molecule))
+            status (.getReturnStatus generator)]
+        (if (= (.toString status) "OKAY")
+          (r/success (.getInchiKey generator))
+          (r/failure "InChI generator error" :inchi-error {})))
+      (catch Exception e
+        (r/failure (.getMessage e) :cdk-error {:details e}))))
+
+(defn molecule->smiles
+    "Converts a molecule to SMILES.
+  Arguments:
+  - molecule: Molecule record
+   Options:
+   - :flavor (keyword) e.g., :generic, :isomeric, :absolute, :canonical"
+    ([molecule]
+     (molecule->smiles molecule {:flavor :generic})) ;; Default arity
+
+    ([molecule {:keys [flavor]}]
+     (try
+       (let [generator (case flavor
+                         :generic   (SmilesGenerator/generic)
+                         :isomeric  (SmilesGenerator/isomeric)
+                         :absolute  (SmilesGenerator/absolute)
+                         :canonical (SmilesGenerator/unique)
+                         (SmilesGenerator/generic))
+             smiles (.createSMILES generator (:structure molecule))]
+         (r/success smiles))
+       (catch Exception e
+         (r/failure "SMILES generation failed" :conversion-error {:exception e})))))
+
+
 
 (defn molecule->inchi-string
   "calculates InChI-string for given molecule object  'IAtomContainer'
@@ -118,54 +167,12 @@
    ))
 
 
-(defn molecule->inchi-key
-  "calculates calculates an InChI-key for a nolecule object 'IAtomContainer'
-
-  Arguments:
-  - molecule: Molecule record
-
-  "
-  [molecule]
-
-  (try
-    (let [factory (InChIGeneratorFactory/getInstance)
-          generator (.getInChIGenerator factory (:structure molecule))
-          status (.getReturnStatus generator)]
-      (if (= (.toString status) "OKAY")
-        (r/success (.getInchiKey generator))
-        (r/failure "InChI generator error" :inchi-error {})))
-    (catch Exception e
-      (r/failure (.getMessage e) :cdk-error {:details e}))))
-
-
-(defn molecule->smiles
-  "Converts a molecule to SMILES.
-  Arguments:
-  - molecule: Molecule record
-   Options:
-   - :flavor (keyword) e.g., :generic, :isomeric, :absolute, :canonical"
-  ([molecule]
-   (molecule->smiles molecule {:flavor :generic})) ;; Default arity
-
-  ([molecule {:keys [flavor]}]
-   (try
-     (let [generator (case flavor
-                       :generic   (SmilesGenerator/generic)
-                       :isomeric  (SmilesGenerator/isomeric)
-                       :absolute  (SmilesGenerator/absolute)
-                       :canonical (SmilesGenerator/unique)
-                       (SmilesGenerator/generic))
-           smiles (.createSMILES generator (:structure molecule))]
-       (r/success smiles))
-     (catch Exception e
-       (r/failure "SMILES generation failed" :conversion-error {:exception e})))))
-
 
 (defn molecule->molv2000
   "generates mol V2000 string for molecule
 
   Argunemts
-  - molecule: IAtomContainer
+  - molecule: Molecule
   "
 
   [molecule]
@@ -271,25 +278,12 @@
   )
 
 
-;; (->
-;;  (r/unwrap-or (inchi-string->molecule "InChI=1S/C4H10/c1-3-4-2/h3-4H2,1-2H3") "Shit happend")
-;;  (r/tap-any println println)
-;;  (r/unwrap)
-;;  (:structure)
-;;  (println)
-;;  (molecule->molv2000)
-;;  (r/tap-any println println)
-;;  (r/unwrap)
-;;  (molv2000->molecule)
-;;  (r/tap-any println println)
-;;  (r/unwrap)
-;;  (molecule->smiles)
-;;  (r/tap-any println println)
-;;  (r/unwrap)
-;;  (smiles->molecule)
-;;  (r/unwrap)
-;;  (molecule->inchi-string)
-;;  )
+(->
+ (inchi-string->molecule "InChI=1S/C4H10/c1-3-4-2/h3-4H2,1-2H3")
+ (r/tap-any println println)
+ (r/unwrap)
+ (clojure.pprint/pprint)
+ )
 
 
 
