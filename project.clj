@@ -10,4 +10,5 @@
                  ]
   :git-dependencies [["https://github.com/QuadroLT/clj-result.git" "main"]]
   :source-paths ["src" ".lein-git-deps/clj-result/src"]
+  :profiles {:test {:resource-paths ["test/resources"]}}
   :repl-options {:init-ns clj-cdk-wrapper.core})

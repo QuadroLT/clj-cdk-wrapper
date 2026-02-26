@@ -5,9 +5,12 @@
    [org.openscience.cdk.silent SilentChemObjectBuilder]
    [org.openscience.cdk.io MDLV2000Reader MDLV2000Writer SDFWriter]
    [org.openscience.cdk.io.iterator IteratingSDFReader]
+   [org.openscience.cdk.tools.manipulator
+    AtomContainerManipulator
+    MolecularFormulaManipulator]
+   ;; [org.openscience.cdk.interfaces IMolecularFormula]
    [java.io StringReader StringWriter FileReader File])
   (:require [clj-result.core :as r]))
-
 
 (defprotocol IMolecule
   "Protocol for manipulation molecule objects"
@@ -18,29 +21,45 @@
 
   (remove-metadata [this k]
     "Removes a key (k) and associated value from Molecule object.
-     Returns a new Moleule object")
-  ;; basic struyctural data exporters
+     Returns a new Molecule object")
 
+  ;; property calculators
+  (calculate-mass [this flavor]
+    "returns average or monoizotopic mass of an molecule
+     -flavor: keyword :average or :monoizotopic
+     -- monoizotopic takes most abundant izotope into calculations")
 
-  ;; TODO place molecule export methods here
-  )
+  (molecular-formula [this]
+    "returns string of molecular formula"
+    ))
 
 (defrecord Molecule [structure metadata]
   IMolecule
   ;; (-molecule? [_] true)
   (add-metadata [this new-data]
     (assoc this :metadata (merge metadata new-data)))
+
   (remove-metadata [this k]
     (assoc this :metadata (dissoc metadata k)))
 
+  (calculate-mass
+    [this {:keys [flavor]}]
+     (let [mass-type (case flavor
+                       :average 1
+                       :monoisotopic 4)]
+       (AtomContainerManipulator/getMass (:structure this) mass-type)))
 
-  ;; TODO place molecule export metods here
+
+  (molecular-formula [this]
+    (let [formula (MolecularFormulaManipulator/getMolecularFormula (:structure this))]
+      (MolecularFormulaManipulator/getString formula)))
   )
-
 
 (defn molecule?
   [obj]
   (instance? Molecule obj))
+
+;; molecule object constructors
 
 (defn make-molecule
   ([structure] (->Molecule structure {}))
@@ -216,17 +235,21 @@
 (defprotocol SDFSource
   (get-reader [source]))
 
+
 (extend-protocol SDFSource
   java.io.File
   (get-reader [source]
     (java.io.FileReader source))
+
+  java.net.URL
+  (get-reader [source]
+    (clojure.java.io/reader source))
 
   java.lang.String
   (get-reader [source]
     (if (clojure.string/ends-with? (clojure.string/lower-case source) ".sdf")
       (FileReader. (File. source))
       (StringReader. source))))
-
 
 (defn sdf->molecules
   "Takes in file stream (object or filename)
@@ -240,10 +263,11 @@
       (let [mols
             (doall
              (for [mol (iterator-seq reader)]
-               (make-molecule
-                (clean-medatata! mol)
-                (extract-metadata mol))))]
-
+               (let [metadata (extract-metadata mol)]
+                 (make-molecule
+                  (clean-medatata! mol)
+                  metadata
+                  ))))]
         (r/success mols)))
     (catch Exception e
       (r/failure "Error reading SDF file" :io-error {:exception e}))))
@@ -278,13 +302,13 @@
   )
 
 
-(->
- (inchi-string->molecule "InChI=1S/C4H10/c1-3-4-2/h3-4H2,1-2H3")
- (r/tap-any println println)
- (r/unwrap)
- (clojure.pprint/pprint)
- )
-
+;; (->
+;;  (inchi-string->molecule "InChI=1S/C6H6/c1-2-4-6-5-3-1/h1-6H")
+;;  (r/tap-any println println)
+;;  (r/unwrap)
+;;  (calculate-mass {:flavor :monoisotopic})
+;;  (println)
+;;  )
 
 
 
