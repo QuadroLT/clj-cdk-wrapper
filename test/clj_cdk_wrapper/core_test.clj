@@ -30,8 +30,10 @@
                  (:inchi-string test-molecule1))))))
     (testing "reading SDF files"
       (let [source (io/resource "testfile1.sdf")
+            source1 (io/resource "testfile.sdf")
             molecules-res (sdf->molecules source)
             molecules-list (r/unwrap molecules-res)
+            molecules-list-long (r/unwrap (sdf->molecules source1))
             mol (first molecules-list)
             ]
         (do
@@ -40,7 +42,7 @@
           (is (= (r/unwrap (molecule->inchi-key mol)) "BSYNRYMUTXBXSQ-UHFFFAOYSA-N"))
           (is (not (empty? (:metadata mol))))
           (is (contains? (:metadata mol) :PUBCHEM_SMILES))
-          ;; (is (= (count molecules-list) 2))
+          (is (= (count molecules-list-long) 2))
           )))
     (testing "molecule properties calculations"
       (let [test-molecule2 "CCCC"
